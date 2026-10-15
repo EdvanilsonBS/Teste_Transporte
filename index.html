@@ -11,7 +11,7 @@
 @media (prefers-color-scheme:dark){:root{--bg:#0a1020;--card:#121a2d;--tx:#eaf0fb;--mut:#9aa8c0;--bd:#223049;--ac:#6ea0ff;--ok:#4ade80;--warn:#fbbf24;--off:#8190a8;--sh:0 8px 28px rgba(0,0,0,.4)}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
-.hero{background:radial-gradient(900px 320px at 88% -20%,#3b6cf0 0,transparent 60%),linear-gradient(135deg,#0b1b3a,#13306b);color:#fff;padding:calc(28px + env(safe-area-inset-top)) 16px 76px}
+.hero{background:radial-gradient(900px 320px at 88% -20%,#3b6cf0 0,transparent 60%),linear-gradient(135deg,#0b1b3a,#13306b);color:#fff;padding:28px 16px 76px}
 .hero-in{max-width:1100px;margin:0 auto}
 .eyebrow{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);padding:6px 14px;border-radius:99px}
 h1{font-size:clamp(28px,6vw,48px);line-height:1.08;margin:16px 0 10px;font-weight:800;letter-spacing:-.02em;max-width:17ch}
@@ -47,6 +47,25 @@ select,input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--b
 .nxt{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-top:12px}
 .block{position:fixed;inset:0;z-index:2000;background:rgba(10,16,32,.85);display:flex;align-items:center;justify-content:center;padding:20px}
 .block .card{max-width:420px}
+.bus{margin-top:8px;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;font-size:13px;cursor:pointer}
+.rt.sel{outline:2px solid var(--ac)}
+.nav{position:sticky;top:0;z-index:1500;background:#0b1b3a;color:#fff;padding-top:env(safe-area-inset-top);border-bottom:1px solid rgba(255,255,255,.12)}
+.nav-in{max-width:1100px;margin:0 auto;padding:0 16px;display:flex;align-items:center;justify-content:space-between;height:58px;position:relative}
+.nav-brand{display:flex;align-items:center;gap:10px;background:none;border:0;color:#fff;font:inherit;font-weight:800;font-size:16px;cursor:pointer;padding:6px 0}
+.nav-brand .ico{width:36px;height:36px;display:grid;place-items:center;background:rgba(255,255,255,.14);border-radius:11px;font-size:18px}
+.chev{display:none;transition:transform .2s}
+.nav.open .chev{transform:rotate(180deg)}
+.nav-menu{display:flex;gap:6px}
+.nav-menu button{border:0;background:none;color:#cbd8f5;font:inherit;font-weight:700;padding:9px 18px;border-radius:10px;cursor:pointer}
+.nav-menu button:hover{background:rgba(255,255,255,.1)}
+.nav-menu button.on{background:#2563eb;color:#fff}
+@media (min-width:720px){.nav-brand{cursor:default;pointer-events:none}}
+@media (max-width:719px){
+  .chev{display:block}
+  .nav-menu{display:none;position:absolute;left:0;right:0;top:100%;flex-direction:column;gap:2px;background:#0b1b3a;padding:6px 12px 14px;border-bottom:1px solid rgba(255,255,255,.12);box-shadow:0 12px 24px rgba(0,0,0,.35)}
+  .nav.open .nav-menu{display:flex}
+  .nav-menu button{text-align:left;padding:14px;font-size:16px}
+}
 .hide{display:none}
 .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .drv{max-width:460px;margin:0 auto}
@@ -61,15 +80,20 @@ select,input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--b
 </style>
 </head>
 <body>
+<header class="nav" id="nav"><div class="nav-in">
+  <button class="nav-brand" id="navBtn" aria-expanded="false" aria-controls="navMenu" aria-label="Menu do transporte">
+    <span class="ico">🚌</span><span>Transporte</span>
+    <svg class="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
+  <nav class="nav-menu" id="navMenu"><button id="tP" class="on">Passageiro</button><button id="tD">Motorista</button></nav>
+</div></header>
 <div class="hero"><div class="hero-in">
-  <span class="eyebrow">🚌 Transporte</span>
   <h1>Encontro Nacional do <span class="hl">Poder Judiciário</span></h1>
   <p>Acompanhe os ônibus em tempo real e chegue ao evento sem pressa.</p>
   <div class="stats"><div><b id="stA">0</b><span>ônibus em operação</span></div><div><b id="stR">0</b><span>rotas</span></div></div>
 </div></div>
 
 <div class="wrap">
-  <nav class="tabs"><button id="tP" class="on">Passageiro</button><button id="tD">Motorista</button></nav>
   <div id="cfg" class="err hide">Configure a constante API_URL no início do script com a URL do seu Apps Script.</div>
 
   <section id="vP">
@@ -77,7 +101,6 @@ select,input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--b
       <div class="card"><div id="map"></div></div>
       <div id="list" class="list"></div>
     </div>
-    <p class="mut note">Atualiza a cada poucos segundos. “Sem sinal” = motorista sem enviar posição há mais de 30 s. Toque numa linha para localizar o ônibus no mapa.</p>
   </section>
 
   <section id="vD" class="hide">
@@ -111,7 +134,7 @@ select,input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--b
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbxwKWy1hRg9YFkq-BYW63BeN5mEEA_5dd4UikAZbbApuzrE1hqmRcj_9FH6ZDs7baUJLw/exec';
-const STALE = 30000, POLL = 8000, SEND = 6000;
+const STALE = 45000, POLL = 15000, SEND = 8000;
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 if (API_URL.startsWith('COLE')) $('cfg').classList.remove('hide');
@@ -123,15 +146,28 @@ const post = async o => (await fetch(API_URL, {method:'POST', headers:{'Content-
 const map = L.map('map').setView([-3.7319, -38.5267], 12); // Fortaleza, CE
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
 let routes = [], buses = [], offset = 0, fitted = false, focus = null;
-const stopsBy = {}; let lines = [];
+const stopsBy = {}, pathBy = {}, R = {}; let selRoute = null;
 function drawStops() {
-  lines.forEach(l => map.removeLayer(l)); lines = [];
+  Object.values(R).forEach(o => { map.removeLayer(o.line); o.dots.forEach(d => map.removeLayer(d)); });
+  Object.keys(R).forEach(k => delete R[k]);
   routes.forEach(r => {
-    const s = stopsBy[String(r.id)] || []; if (!s.length) return;
-    lines.push(L.polyline(s.map(p => [p.lat, p.lng]), {color:r.cor, weight:4, opacity:.6}).addTo(map));
-    s.forEach((p, i) => lines.push(L.circleMarker([p.lat, p.lng], {radius:7, color:r.cor, weight:3, fillColor:'#fff', fillOpacity:1}).bindTooltip(esc((i + 1) + '. ' + p.nome)).addTo(map)));
+    const id = String(r.id), path = (pathBy[id] && pathBy[id].length > 1) ? pathBy[id] : (stopsBy[id] || []);
+    if (path.length < 2) return;
+    const line = L.polyline(path.map(p => [p.lat, p.lng]), {color:r.cor, weight:4, opacity:.55}).addTo(map);
+    const dots = (stopsBy[id] || []).map((p, i) => L.circleMarker([p.lat, p.lng], {radius:7, color:r.cor, weight:3, fillColor:'#fff', fillOpacity:1}).bindTooltip(esc((i + 1) + '. ' + p.nome)));
+    R[id] = {line, dots};
   });
-  if (!fitted && lines.length) { map.fitBounds(L.featureGroup(lines).getBounds().pad(.15)); fitted = true; }
+  paintRoutes();
+  const ls = Object.values(R).map(o => o.line);
+  if (!fitted && ls.length) { map.fitBounds(L.featureGroup(ls).getBounds().pad(.15)); fitted = true; }
+}
+function paintRoutes() {
+  Object.entries(R).forEach(([id, o]) => {
+    const on = selRoute === id, dim = selRoute && !on;
+    o.line.setStyle({weight:on ? 7 : 4, opacity:dim ? .15 : on ? .95 : .55});
+    if (on) o.line.bringToFront();
+    o.dots.forEach(d => on ? d.addTo(map) : map.removeLayer(d));
+  });
 }
 function nextTxt(r, b) {
   const s = stopsBy[String(r.id)];
@@ -148,27 +184,48 @@ function state(b) {
   return (Date.now() + offset - Number(b.ts)) < STALE ? ['Em operação', 'ok'] : ['Sem sinal', 'warn'];
 }
 function render() {
+  const now = Date.now() + offset, by = {};
+  buses.forEach(b => { if (state(b)[0] !== 'Fora de operação') (by[String(b.rota)] = by[String(b.rota)] || []).push(b); });
   $('list').innerHTML = routes.map(r => {
-    const b = buses.find(x => String(x.rota) === String(r.id)), [st, cl] = state(b);
-    const ago = b && st !== 'Fora de operação' ? Math.max(0, Math.round((Date.now() + offset - Number(b.ts)) / 1000)) : null;
-    return '<div class="rt" data-id="' + esc(r.id) + '"><div class="top"><span class="dot" style="background:' + esc(r.cor) + '"></span>' + esc(r.id) + ' · ' + esc(r.nome) + '<span class="pill ' + cl + '">' + st + '</span></div>' +
-      '<div class="mut" style="margin-top:6px">' + (ago != null ? 'Motorista: ' + esc(b.motorista) + nextTxt(r, b) + '<br>Atualizado há ' + ago + ' s · ' + Math.round(Number(b.vel || 0) * 3.6) + ' km/h' : 'Aguardando um motorista iniciar o percurso') + '</div></div>';
+    const bs = by[String(r.id)] || [], n = bs.filter(b => state(b)[0] === 'Em operação').length;
+    const [st, cl] = n ? [n + ' em operação', 'ok'] : bs.length ? ['Sem sinal', 'warn'] : ['Fora de operação', 'off'];
+    const lines = bs.map(b => '<div class="bus" data-bus="' + esc(b.motorista) + '">🚌 <b>' + esc(b.motorista) + '</b> · há ' + Math.max(0, Math.round((now - Number(b.ts)) / 1000)) + ' s' + nextTxt(r, b) + '</div>').join('');
+    return '<div class="rt' + (selRoute === String(r.id) ? ' sel' : '') + '" data-id="' + esc(r.id) + '"><div class="top"><span class="dot" style="background:' + esc(r.cor) + '"></span>' + esc(r.id) + ' · ' + esc(r.nome) + '<span class="pill ' + cl + '">' + st + '</span></div>' +
+      (lines || '<div class="mut" style="margin-top:6px">Aguardando um motorista iniciar o percurso</div>') + '</div>';
   }).join('');
   $('stA').textContent = buses.filter(b => state(b)[0] === 'Em operação').length; $('stR').textContent = routes.length;
   const seen = new Set();
   buses.forEach(b => {
-    const [st] = state(b), id = String(b.rota), r = routes.find(x => String(x.id) === id);
+    const [st] = state(b), id = String(b.motorista), r = routes.find(x => String(x.id) === String(b.rota));
     if (st === 'Fora de operação' || !r) return;
     seen.add(id);
     const ll = [Number(b.lat), Number(b.lng)];
-    if (!markers[id]) markers[id] = L.marker(ll, {icon:L.divIcon({className:'', html:'<div class="pin" style="background:' + esc(r.cor) + '">' + esc(r.id) + '</div>', iconSize:[30,30], iconAnchor:[15,15]})}).addTo(map);
+    if (markers[id] && markers[id]._rota !== String(r.id)) { map.removeLayer(markers[id]); delete markers[id]; }
+    if (!markers[id]) { markers[id] = L.marker(ll, {icon:L.divIcon({className:'', html:'<div class="pin" style="background:' + esc(r.cor) + '">' + esc(r.id) + '</div>', iconSize:[30,30], iconAnchor:[15,15]})}).addTo(map); markers[id]._rota = String(r.id); }
     else markers[id].setLatLng(ll);
-    markers[id].setOpacity(st === 'Sem sinal' ? .5 : 1);
+    markers[id].setOpacity(st === 'Sem sinal' ? .5 : (selRoute && selRoute !== String(r.id) ? .4 : 1));
   });
   Object.keys(markers).forEach(id => { if (!seen.has(id)) { map.removeLayer(markers[id]); delete markers[id]; } });
   if (!fitted && seen.size) { map.fitBounds(L.latLngBounds([...seen].map(id => markers[id].getLatLng())).pad(.4), {maxZoom:16}); fitted = true; }
 }
-$('list').addEventListener('click', e => { const c = e.target.closest('.rt'); if (c && markers[c.dataset.id]) map.setView(markers[c.dataset.id].getLatLng(), 16); });
+$('list').addEventListener('click', e => {
+  const bus = e.target.closest('.bus');
+  if (bus) {
+    const b = buses.find(x => String(x.motorista) === bus.dataset.bus);
+    if (b) selRoute = String(b.rota);
+    paintRoutes(); render();
+    if (markers[bus.dataset.bus]) map.setView(markers[bus.dataset.bus].getLatLng(), 16);
+    return;
+  }
+  const c = e.target.closest('.rt'); if (!c) return;
+  selRoute = selRoute === c.dataset.id ? null : c.dataset.id;
+  paintRoutes(); render();
+  if (selRoute) {
+    const pts = Object.values(markers).filter(m => m._rota === selRoute).map(m => m.getLatLng());
+    if (R[selRoute]) map.fitBounds(R[selRoute].line.getBounds().pad(.15));
+    else if (pts.length) map.fitBounds(L.latLngBounds(pts).pad(.3), {maxZoom:16});
+  }
+});
 
 async function poll() {
   if (API_URL.startsWith('COLE') || document.hidden) return;
@@ -181,12 +238,16 @@ async function init() {
     try {
       (await get('stops')).stops.forEach(p => (stopsBy[String(p.rota)] = stopsBy[String(p.rota)] || []).push({nome:p.nome, lat:Number(p.lat), lng:Number(p.lng), ordem:Number(p.ordem)}));
       Object.values(stopsBy).forEach(a => a.sort((x, y) => x.ordem - y.ordem));
-      drawStops();
     } catch (e) {}
+    try {
+      (await get('path')).path.forEach(p => (pathBy[String(p.rota)] = pathBy[String(p.rota)] || []).push({lat:Number(p.lat), lng:Number(p.lng), ordem:Number(p.ordem)}));
+      Object.values(pathBy).forEach(a => a.sort((x, y) => x.ordem - y.ordem));
+    } catch (e) {}
+    drawStops();
     $('rsel').innerHTML = routes.map(r => '<option value="' + esc(r.id) + '">' + esc(r.id + ' · ' + r.nome) + '</option>').join('');
     $('drv').innerHTML = (await get('drivers')).drivers.map(n => '<option>' + esc(n) + '</option>').join('');
   } catch (e) { $('cfg').textContent = 'Não consegui acessar a planilha. Confira a URL e se a implantação está como “Qualquer pessoa”.'; $('cfg').classList.remove('hide'); }
-  (async function loop() { await poll(); setTimeout(loop, POLL + Math.random() * 3000); })();
+  (async function loop() { await poll(); setTimeout(loop, POLL + Math.random() * 5000); })();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
   setInterval(render, 1000);
 }
@@ -278,7 +339,11 @@ async function send(cur) {
 
 /* ---------- abas ---------- */
 function tab(p) { $('vP').classList.toggle('hide', !p); $('vD').classList.toggle('hide', p); $('tP').classList.toggle('on', p); $('tD').classList.toggle('on', !p); if (p) setTimeout(() => map.invalidateSize(), 50); }
-$('tP').onclick = () => tab(true); $('tD').onclick = () => tab(false);
+function navClose() { $('nav').classList.remove('open'); $('navBtn').setAttribute('aria-expanded', 'false'); }
+$('navBtn').onclick = () => { const o = $('nav').classList.toggle('open'); $('navBtn').setAttribute('aria-expanded', o); };
+$('tP').onclick = () => { tab(true); navClose(); };
+$('tD').onclick = () => { tab(false); navClose(); };
+document.addEventListener('click', e => { if (!$('nav').contains(e.target)) navClose(); });
 ui(); init();
 </script>
 </body>
