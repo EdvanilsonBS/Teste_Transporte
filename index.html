@@ -66,6 +66,8 @@ select,input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--b
   .nav.open .nav-menu{display:flex}
   .nav-menu button{text-align:left;padding:14px;font-size:16px}
 }
+.eco{position:fixed;inset:0;z-index:3000;background:#000;color:#6b7280;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;line-height:1.7}
+.eco b{font-size:20px;color:#9ca3af}
 .hide{display:none}
 .row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
 .drv{max-width:460px;margin:0 auto}
@@ -90,7 +92,7 @@ select,input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--b
 <div class="hero"><div class="hero-in">
   <h1>Encontro Nacional do <span class="hl">Poder Judiciário</span></h1>
   <p>Acompanhe os ônibus em tempo real e chegue ao evento sem pressa.</p>
-  <div class="stats"><div><b id="stA">0</b><span>ônibus em operação</span></div><div><b id="stR">0</b><span>rotas</span></div></div>
+  <div class="stats"><div><b id="stA">—</b><span>ônibus em operação</span></div><div><b id="stR">—</b><span>rotas</span></div></div>
 </div></div>
 
 <div class="wrap">
@@ -108,18 +110,22 @@ select,input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--b
       <div id="login" class="card">
         <b style="font-size:18px">Entrar como motorista</b>
         <label for="drv">Motorista</label><select id="drv"></select>
-        <label for="pin">PIN</label><input id="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+        <label for="pin">Senha</label><input id="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
         <div class="err" id="lErr"></div>
         <button class="btn" id="btnIn">Entrar</button>
       </div>
       <div id="panel" class="card hide">
         <div class="row"><b id="hello" style="font-size:18px"></b><button class="btn ghost" id="btnOut">Sair</button></div>
+        <div id="resume" class="nxt hide"><div><b>Percurso interrompido</b><br><span class="mut" id="resumeTxt"></span></div><button class="btn ghost" id="btnResume">Retomar</button></div>
         <label for="rsel">Rota</label><select id="rsel"></select>
         <button class="btn" id="btnGo">Iniciar percurso</button>
+        <button class="btn ghost hide" id="btnEco" style="width:100%;margin-top:10px">🌙 Modo economia (tela escura)</button>
         <div class="mut" id="dst" style="margin-top:12px"></div>
         <div id="nxt" class="nxt hide"><div><span class="mut">Próxima parada</span><br><b id="nxtName"></b> <span class="mut" id="nxtDist"></span></div><button class="btn ghost" id="btnNext">Avançar parada</button></div>
         <div class="err" id="dErr"></div>
-        <p class="mut">Mantenha esta tela aberta durante o percurso e permita o acesso à localização.</p>
+        <div class="warn mut" id="dInfo"></div>
+        <div class="err hide" id="wlWarn">⚠️ Não consegui manter a tela ligada. Desative o bloqueio automático de tela nas configurações do aparelho; senão o envio para quando a tela apagar.</div>
+        <p class="mut">Deixe o celular no suporte, carregando, com esta tela aberta e a localização permitida. Se a rota terminar, o app passa sozinho para a próxima.</p>
       </div>
     </div>
   </section>
@@ -131,10 +137,12 @@ select,input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--b
   <button class="btn red" id="btnEnd">Finalizar percurso</button>
 </div></div>
 
+<div id="eco" class="eco hide"><div><b>🚌 Transmitindo a posição</b><br><span id="ecoTxt"></span><br><span id="ecoSt"></span><br><small>Toque na tela para voltar</small></div></div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 const API_URL = 'https://script.google.com/macros/s/AKfycbxwKWy1hRg9YFkq-BYW63BeN5mEEA_5dd4UikAZbbApuzrE1hqmRcj_9FH6ZDs7baUJLw/exec';
-const STALE = 45000, POLL = 15000, SEND = 8000;
+const STALE = 60000, HIDE_AFTER = 600000, POLL = 8000, SEND = 8000; // sem sinal após 60 s; some do mapa após 10 min
 const $ = id => document.getElementById(id);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 if (API_URL.startsWith('COLE')) $('cfg').classList.remove('hide');
@@ -145,7 +153,7 @@ const post = async o => (await fetch(API_URL, {method:'POST', headers:{'Content-
 /* ---------- mapa e passageiro ---------- */
 const map = L.map('map').setView([-3.7319, -38.5267], 12); // Fortaleza, CE
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
-let routes = [], buses = [], offset = 0, fitted = false, focus = null;
+let routes = [], buses = [], offset = 0, fitted = false, focus = null, loaded = false, lastList = '';
 const stopsBy = {}, pathBy = {}, R = {}; let selRoute = null;
 function drawStops() {
   Object.values(R).forEach(o => { map.removeLayer(o.line); o.dots.forEach(d => map.removeLayer(d)); });
@@ -181,19 +189,22 @@ function state(b) {
   if (!b) return ['Fora de operação', 'off'];
   const ativo = b.ativo === true || b.ativo === 'TRUE';
   if (!ativo) return ['Fora de operação', 'off'];
-  return (Date.now() + offset - Number(b.ts)) < STALE ? ['Em operação', 'ok'] : ['Sem sinal', 'warn'];
+  const age = Date.now() + offset - Number(b.ts);
+  return age < STALE ? ['Em operação', 'ok'] : age < HIDE_AFTER ? ['Sem sinal', 'warn'] : ['Fora de operação', 'off'];
 }
 function render() {
   const now = Date.now() + offset, by = {};
   buses.forEach(b => { if (state(b)[0] !== 'Fora de operação') (by[String(b.rota)] = by[String(b.rota)] || []).push(b); });
-  $('list').innerHTML = routes.map(r => {
+  const html = routes.map(r => {
     const bs = by[String(r.id)] || [], n = bs.filter(b => state(b)[0] === 'Em operação').length;
     const [st, cl] = n ? [n + ' em operação', 'ok'] : bs.length ? ['Sem sinal', 'warn'] : ['Fora de operação', 'off'];
-    const lines = bs.map(b => '<div class="bus" data-bus="' + esc(b.motorista) + '">🚌 <b>' + esc(b.motorista) + '</b> · há ' + Math.max(0, Math.round((now - Number(b.ts)) / 1000)) + ' s' + nextTxt(r, b) + '</div>').join('');
+    const lines = bs.map(b => '<div class="bus" data-bus="' + esc(b.motorista) + '">🚌 <b>' + esc(b.motorista) + '</b> · há <span class="age" data-ts="' + Number(b.ts) + '"></span>' + nextTxt(r, b) + '</div>').join('');
     return '<div class="rt' + (selRoute === String(r.id) ? ' sel' : '') + '" data-id="' + esc(r.id) + '"><div class="top"><span class="dot" style="background:' + esc(r.cor) + '"></span>' + esc(r.id) + ' · ' + esc(r.nome) + '<span class="pill ' + cl + '">' + st + '</span></div>' +
       (lines || '<div class="mut" style="margin-top:6px">Aguardando um motorista iniciar o percurso</div>') + '</div>';
   }).join('');
-  $('stA').textContent = buses.filter(b => state(b)[0] === 'Em operação').length; $('stR').textContent = routes.length;
+  if (html !== lastList) { $('list').innerHTML = html; lastList = html; } // só refaz a lista quando algo muda (não perde toques)
+  $('list').querySelectorAll('.age').forEach(el => { const sc = Math.max(0, Math.round((now - Number(el.dataset.ts)) / 1000)); el.textContent = sc < 90 ? sc + ' s' : Math.round(sc / 60) + ' min'; });
+  $('stA').textContent = loaded ? buses.filter(b => state(b)[0] === 'Em operação').length : '—'; $('stR').textContent = routes.length || '—';
   const seen = new Set();
   buses.forEach(b => {
     const [st] = state(b), id = String(b.motorista), r = routes.find(x => String(x.id) === String(b.rota));
@@ -229,7 +240,7 @@ $('list').addEventListener('click', e => {
 
 async function poll() {
   if (API_URL.startsWith('COLE') || document.hidden) return;
-  try { const d = await get('buses'); buses = d.buses; offset = d.now - Date.now(); render(); } catch (e) {}
+  try { const d = await get('buses'); buses = d.buses; offset = d.now - Date.now(); loaded = true; render(); } catch (e) {}
 }
 async function init() {
   if (API_URL.startsWith('COLE')) return;
@@ -244,10 +255,10 @@ async function init() {
       Object.values(pathBy).forEach(a => a.sort((x, y) => x.ordem - y.ordem));
     } catch (e) {}
     drawStops();
-    $('rsel').innerHTML = routes.map(r => '<option value="' + esc(r.id) + '">' + esc(r.id + ' · ' + r.nome) + '</option>').join('');
+    $('rsel').innerHTML = routes.map(r => '<option value="' + esc(r.id) + '">' + esc(r.id + ' · ' + r.nome) + '</option>').join(''); ui();
     $('drv').innerHTML = (await get('drivers')).drivers.map(n => '<option>' + esc(n) + '</option>').join('');
   } catch (e) { $('cfg').textContent = 'Não consegui acessar a planilha. Confira a URL e se a implantação está como “Qualquer pessoa”.'; $('cfg').classList.remove('hide'); }
-  (async function loop() { await poll(); setTimeout(loop, POLL + Math.random() * 5000); })();
+  (async function loop() { await poll(); setTimeout(loop, POLL + Math.random() * 2000); })();
   document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
   setInterval(render, 1000);
 }
@@ -255,14 +266,22 @@ async function init() {
 /* ---------- motorista ---------- */
 let sess = null, run = null;
 try { sess = JSON.parse(localStorage.getItem('bl_sess')); } catch (e) {}
+const rname = id => { const r = routes.find(x => String(x.id) === String(id)); return r ? r.id + ' · ' + r.nome : String(id); };
+function readSaved() { try { const v = JSON.parse(localStorage.getItem('bl_run')); return v && Date.now() - v.t < 12 * 3600000 ? v : null; } catch (e) { return null; } }
+function save(cur) { try { localStorage.setItem('bl_run', JSON.stringify({rota:cur.rota, prox:cur.prox, t:Date.now()})); } catch (e) {} }
+function clearSaved() { try { localStorage.removeItem('bl_run'); } catch (e) {} }
+function info(msg) { $('dInfo').textContent = msg; clearTimeout(info.t); info.t = setTimeout(() => { $('dInfo').textContent = ''; }, 20000); }
 function ui() {
   $('login').classList.toggle('hide', !!sess); $('panel').classList.toggle('hide', !sess);
   if (sess) $('hello').textContent = 'Olá, ' + sess.nome;
+  const sv = sess && !run ? readSaved() : null;
+  $('resume').classList.toggle('hide', !sv);
+  if (sv) $('resumeTxt').textContent = 'Rota ' + rname(sv.rota) + '.';
   $('btnGo').textContent = run ? 'Finalizar percurso' : 'Iniciar percurso';
-  $('btnGo').classList.toggle('red', !!run); $('rsel').disabled = !!run;
+  $('btnGo').classList.toggle('red', !!run); $('btnEco').classList.toggle('hide', !run);
   $('nxt').classList.toggle('hide', !run || !(stopsBy[run.rota] || []).length);
-  if (run) nextUI(run);
-  $('dst').textContent = run ? 'Transmitindo a posição da rota ' + run.rota + '…' : '';
+  if (run) { $('rsel').value = run.rota; $('ecoTxt').textContent = 'Rota ' + rname(run.rota); nextUI(run); }
+  $('dst').textContent = run ? 'Transmitindo a posição · rota ' + rname(run.rota) + '…' : '';
 }
 $('btnIn').onclick = async () => {
   $('lErr').textContent = '';
@@ -274,55 +293,103 @@ $('btnIn').onclick = async () => {
 };
 async function stop(msg) {
   if (!run) return; const cur = run; run = null; gpsWarn(false);
+  $('eco').classList.add('hide'); $('wlWarn').classList.add('hide');
+  if (!msg) clearSaved(); // finalizou de propósito: não oferece "retomar"
   navigator.geolocation.clearWatch(cur.watch); clearInterval(cur.timer);
   try { cur.wake && cur.wake.release(); } catch (e) {}
   try { await post({action:'stop', token:sess.token, rota:cur.rota}); } catch (e) {}
   $('dErr').textContent = msg || ''; ui(); poll();
 }
-$('btnOut').onclick = async () => { await stop(); sess = null; localStorage.removeItem('bl_sess'); ui(); };
-$('btnGo').onclick = async () => {
+$('btnOut').onclick = async () => { await stop(); clearSaved(); sess = null; localStorage.removeItem('bl_sess'); ui(); };
+$('btnGo').onclick = () => run ? stop() : startRun($('rsel').value, null);
+$('btnResume').onclick = () => { const v = readSaved(); if (v) { $('rsel').value = v.rota; startRun(v.rota, v.prox); } };
+$('rsel').onchange = () => { if (run && $('rsel').value !== run.rota) { info('Rota alterada manualmente.'); switchRoute(run, $('rsel').value); } };
+
+async function startRun(rota, prox0) {
+  if (run) return;
   $('dErr').textContent = '';
-  if (run) return stop();
   if (!navigator.geolocation) { $('dErr').textContent = 'Este aparelho não oferece GPS.'; return; }
-  $('btnGo').disabled = true; $('dst').textContent = 'Verificando o GPS…';
+  $('btnGo').disabled = true; $('btnResume').disabled = true; $('dst').textContent = 'Verificando o GPS…';
   const fix = await new Promise(res => navigator.geolocation.getCurrentPosition(p => res({p}), e => res({e}), {enableHighAccuracy:true, timeout:15000, maximumAge:0}));
-  $('btnGo').disabled = false; $('dst').textContent = '';
+  $('btnGo').disabled = false; $('btnResume').disabled = false; $('dst').textContent = '';
   if (fix.e) { $('dErr').textContent = gpsMsg(fix.e); return; }
-  const cur = run = {rota:$('rsel').value, last:{lat:fix.p.coords.latitude, lng:fix.p.coords.longitude, vel:fix.p.coords.speed}, busy:false, prox:0, fixAt:Date.now()};
+  const last = {lat:fix.p.coords.latitude, lng:fix.p.coords.longitude, vel:fix.p.coords.speed};
+  rota = String(rota);
+  const cur = run = {rota, last, busy:false, prox:prox0 != null ? prox0 : nearest(stopsBy[rota] || [], last), fixAt:Date.now(), lastOk:Date.now()};
   cur.watch = navigator.geolocation.watchPosition(
     p => { cur.last = {lat:p.coords.latitude, lng:p.coords.longitude, vel:p.coords.speed}; cur.fixAt = Date.now(); gpsWarn(false); autoAdvance(cur); if (!cur.sent) send(cur); },
     e => { if (e.code === 1) stop(gpsMsg(e)); else gpsWarn(true); },
     {enableHighAccuracy:true, maximumAge:2000});
   cur.timer = setInterval(() => { if (Date.now() - cur.fixAt > 15000) gpsWarn(true); send(cur); }, SEND);
-  try { cur.wake = await navigator.wakeLock.request('screen'); } catch (e) {}
-  ui();
-};
+  save(cur); keepAwake(cur); ui();
+}
+async function keepAwake(cur) {
+  if (!navigator.wakeLock) { $('wlWarn').classList.remove('hide'); return; }
+  try { cur.wake = await navigator.wakeLock.request('screen'); $('wlWarn').classList.add('hide'); }
+  catch (e) { $('wlWarn').classList.remove('hide'); }
+}
 function gpsMsg(e) {
   return e.code === 1 ? 'Permissão de localização negada. Libere a localização para este site nas configurações do navegador.'
     : e.code === 2 ? 'GPS desligado ou sem sinal. Ligue a localização do aparelho e tente de novo.'
     : 'Não consegui obter sua posição. Vá para um local aberto, confirme que o GPS está ligado e tente de novo.';
 }
-function gpsWarn(on) { $('gpsWarn').classList.toggle('hide', !on); }
+function gpsWarn(on) { if (on) $('eco').classList.add('hide'); $('gpsWarn').classList.toggle('hide', !on); }
 $('btnEnd').onclick = () => stop();
-document.addEventListener('visibilitychange', async () => {
-  if (!document.hidden && run) { try { run.wake = await navigator.wakeLock.request('screen'); } catch (e) {} }
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !run) return;
+  keepAwake(run); // a tela ligada é liberada quando a página sai da frente; pede de novo
+  const gap = Date.now() - run.lastOk;
+  if (gap > 60000) info('O envio ficou parado por cerca de ' + Math.max(1, Math.round(gap / 60000)) + ' min (tela apagada ou app em segundo plano). Já retomou.');
+  send(run);
 });
 try { navigator.permissions.query({name:'geolocation'}).then(s => { s.onchange = () => { if (s.state === 'denied' && run) stop('A permissão de localização foi retirada.'); }; }); } catch (e) {}
+
+/* modo economia: tela preta (poupa bateria em telas OLED) mantendo a página ativa */
+$('btnEco').onclick = () => { if (run) $('eco').classList.remove('hide'); };
+$('eco').onclick = () => $('eco').classList.add('hide');
+setInterval(() => { if (run && !$('eco').classList.contains('hide')) $('ecoSt').textContent = 'Último envio há ' + Math.round((Date.now() - run.lastOk) / 1000) + ' s'; }, 1000);
+
+/* paradas e troca automática de rota */
 function dist(la1, ln1, la2, ln2) {
   const R = 6371000, t = Math.PI / 180, a = Math.sin((la2 - la1) * t / 2) ** 2 + Math.cos(la1 * t) * Math.cos(la2 * t) * Math.sin((ln2 - ln1) * t / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(a));
 }
+function nearest(s, p) {
+  if (!s.length || !p) return 0;
+  let bi = 0, bd = Infinity;
+  s.forEach((x, i) => { const d = dist(p.lat, p.lng, x.lat, x.lng); if (d < bd) { bd = d; bi = i; } });
+  return bi;
+}
+function seguinte(id) { // próxima rota do ciclo (coluna 'seguinte' da aba rotas); vazio = rota circular
+  const r = routes.find(x => String(x.id) === String(id)), n = r && r.seguinte != null ? String(r.seguinte).trim() : '';
+  return n && n !== String(id) && routes.some(x => String(x.id) === n) ? n : null;
+}
 function nextUI(cur) {
   const s = stopsBy[cur.rota] || []; if (!s.length) return;
-  const p = s[cur.prox];
+  const p = s[cur.prox]; if (!p) return;
   $('nxtName').textContent = (cur.prox + 1) + '. ' + p.nome;
   $('nxtDist').textContent = cur.last ? '· a ' + Math.round(dist(cur.last.lat, cur.last.lng, p.lat, p.lng)) + ' m' : '';
+  $('ecoTxt').textContent = 'Rota ' + rname(cur.rota) + ' · próxima: ' + p.nome;
 }
-function advance(cur) { const s = stopsBy[cur.rota] || []; if (!s.length) return; cur.prox = (cur.prox + 1) % s.length; nextUI(cur); }
+function switchRoute(cur, id) {
+  cur.rota = String(id); cur.prox = nearest(stopsBy[cur.rota] || [], cur.last);
+  save(cur); ui(); send(cur);
+}
+function advance(cur) {
+  const s = stopsBy[cur.rota] || []; if (!s.length) return;
+  if (cur.prox >= s.length - 1) { // chegou à última parada: vai para a próxima rota do ciclo
+    const nx = seguinte(cur.rota);
+    if (nx) { info('Rota alterada automaticamente para ' + rname(nx) + '.'); return switchRoute(cur, nx); }
+  }
+  cur.prox = (cur.prox + 1) % s.length; save(cur); nextUI(cur);
+}
 function autoAdvance(cur) {
   const s = stopsBy[cur.rota] || []; if (!s.length || !cur.last) return;
-  const p = s[cur.prox];
-  if (dist(cur.last.lat, cur.last.lng, p.lat, p.lng) < 40) advance(cur); else nextUI(cur);
+  const lim = Math.min(s.length - 1, cur.prox + 3); // tolera até 2 paradas perdidas por falha de GPS
+  for (let j = cur.prox; j <= lim; j++) {
+    if (dist(cur.last.lat, cur.last.lng, s[j].lat, s[j].lng) < 40) { cur.prox = j; advance(cur); return; }
+  }
+  nextUI(cur);
 }
 $('btnNext').onclick = () => { if (run) { advance(run); send(run); } };
 async function send(cur) {
@@ -330,9 +397,9 @@ async function send(cur) {
   cur.busy = true; cur.sent = true;
   try {
     const r = await post({action:'pos', token:sess.token, rota:cur.rota, lat:cur.last.lat, lng:cur.last.lng, vel:cur.last.vel || 0, prox:cur.prox});
-    if (r.error === 'rota_ocupada') stop('Esta rota já está em operação com outro motorista.');
-    else if (r.error) { sess = null; localStorage.removeItem('bl_sess'); stop('Sessão expirada. Entre novamente.'); }
-    else $('dErr').textContent = '';
+    if (r.error === 'token') { sess = null; localStorage.removeItem('bl_sess'); stop('Sessão expirada. Entre novamente.'); }
+    else if (r.error) $('dErr').textContent = 'Erro ao enviar (' + r.error + ').';
+    else { cur.lastOk = Date.now(); $('dErr').textContent = ''; }
   } catch (e) { $('dErr').textContent = 'Falha ao enviar a posição; tentando de novo.'; }
   cur.busy = false;
 }
