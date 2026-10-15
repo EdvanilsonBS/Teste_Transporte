@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1b3a">
+<title>Transporte · Encontro Nacional do Poder Judiciário</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#f3f5f9;--card:#fff;--tx:#0f1a2e;--mut:#5d6b82;--bd:#e2e7ef;--ac:#2563eb;--ok:#15803d;--warn:#b45309;--off:#7b8798;--sh:0 8px 28px rgba(15,26,46,.08)}
+@media (prefers-color-scheme:dark){:root{--bg:#0a1020;--card:#121a2d;--tx:#eaf0fb;--mut:#9aa8c0;--bd:#223049;--ac:#6ea0ff;--ok:#4ade80;--warn:#fbbf24;--off:#8190a8;--sh:0 8px 28px rgba(0,0,0,.4)}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+.hero{background:radial-gradient(900px 320px at 88% -20%,#3b6cf0 0,transparent 60%),linear-gradient(135deg,#0b1b3a,#13306b);color:#fff;padding:calc(28px + env(safe-area-inset-top)) 16px 76px}
+.hero-in{max-width:1100px;margin:0 auto}
+.eyebrow{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);padding:6px 14px;border-radius:99px}
+h1{font-size:clamp(28px,6vw,48px);line-height:1.08;margin:16px 0 10px;font-weight:800;letter-spacing:-.02em;max-width:17ch}
+.hl{background:linear-gradient(90deg,#8bb8ff,#a5f3fc);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{margin:0;color:#cbd8f5;max-width:46ch}
+.stats{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+.stats div{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:10px 16px;min-width:130px}
+.stats b{display:block;font-size:26px;line-height:1.1}
+.stats span{font-size:12px;color:#cbd8f5}
+.wrap{max-width:1100px;margin:-46px auto 0;padding:0 16px 32px}
+.tabs{display:flex;background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:4px;box-shadow:var(--sh);margin-bottom:16px}
+.tabs button{flex:1;border:0;background:none;color:var(--mut);padding:13px 16px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer;transition:.15s}
+.tabs button.on{background:var(--ac);color:#fff}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:16px;box-shadow:var(--sh)}
+.layout{display:grid;gap:16px}
+#map{height:360px;border-radius:14px}
+.list{display:grid;gap:10px;align-content:start}
+.rt{border:1px solid var(--bd);border-radius:14px;padding:14px;cursor:pointer;background:var(--card);box-shadow:var(--sh);transition:transform .15s}
+.rt:active{transform:scale(.99)}
+.top{display:flex;align-items:center;gap:8px;font-weight:700}
+.dot{width:12px;height:12px;border-radius:50%;flex:none}
+.pill{margin-left:auto;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+.pill.ok::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor;margin-right:6px;animation:p 1.4s infinite}
+@keyframes p{50%{opacity:.25}}
+.ok{color:var(--ok)}.warn{color:var(--warn)}.off{color:var(--off)}
+.mut{color:var(--mut);font-size:13px}
+.note{margin:14px 2px 0}
+label{display:block;font-size:13px;font-weight:600;color:var(--mut);margin:14px 0 6px}
+select,input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font:inherit;font-size:16px}
+.btn{margin-top:18px;width:100%;border:0;background:var(--ac);color:#fff;padding:15px 18px;border-radius:12px;font:inherit;font-weight:700;cursor:pointer}
+.btn.red{background:#dc2626}.btn.ghost{background:none;color:var(--ac);border:1px solid var(--bd);margin:0;width:auto;padding:9px 16px}
+.err{color:#dc2626;font-size:13px;margin-top:8px;min-height:18px}
+.nxt{display:flex;gap:10px;align-items:center;justify-content:space-between;background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-top:12px}
+.block{position:fixed;inset:0;z-index:2000;background:rgba(10,16,32,.85);display:flex;align-items:center;justify-content:center;padding:20px}
+.block .card{max-width:420px}
+.hide{display:none}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.drv{max-width:460px;margin:0 auto}
+.pin{width:32px;height:32px;border-radius:50%;color:#fff;font:700 11px/26px system-ui;text-align:center;border:3px solid #fff;box-shadow:0 2px 8px #0007}
+@media (min-width:900px){
+  .layout{grid-template-columns:1fr 390px;align-items:start}
+  #map{height:620px}
+  .list{max-height:660px;overflow:auto;padding:4px 6px 4px 2px}
+  .wrap{padding-bottom:48px}
+}
+@media (max-width:520px){.stats div{flex:1;min-width:0}.card{padding:12px;border-radius:16px}}
+</style>
+</head>
+<body>
+<div class="hero"><div class="hero-in">
+  <span class="eyebrow">🚌 Transporte</span>
+  <h1>Encontro Nacional do <span class="hl">Poder Judiciário</span></h1>
+  <p>Acompanhe os ônibus em tempo real e chegue ao evento sem pressa.</p>
+  <div class="stats"><div><b id="stA">0</b><span>ônibus em operação</span></div><div><b id="stR">0</b><span>rotas</span></div></div>
+</div></div>
+
+<div class="wrap">
+  <nav class="tabs"><button id="tP" class="on">Passageiro</button><button id="tD">Motorista</button></nav>
+  <div id="cfg" class="err hide">Configure a constante API_URL no início do script com a URL do seu Apps Script.</div>
+
+  <section id="vP">
+    <div class="layout">
+      <div class="card"><div id="map"></div></div>
+      <div id="list" class="list"></div>
+    </div>
+    <p class="mut note">Atualiza a cada poucos segundos. “Sem sinal” = motorista sem enviar posição há mais de 30 s. Toque numa linha para localizar o ônibus no mapa.</p>
+  </section>
+
+  <section id="vD" class="hide">
+    <div class="drv">
+      <div id="login" class="card">
+        <b style="font-size:18px">Entrar como motorista</b>
+        <label for="drv">Motorista</label><select id="drv"></select>
+        <label for="pin">PIN</label><input id="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off">
+        <div class="err" id="lErr"></div>
+        <button class="btn" id="btnIn">Entrar</button>
+      </div>
+      <div id="panel" class="card hide">
+        <div class="row"><b id="hello" style="font-size:18px"></b><button class="btn ghost" id="btnOut">Sair</button></div>
+        <label for="rsel">Rota</label><select id="rsel"></select>
+        <button class="btn" id="btnGo">Iniciar percurso</button>
+        <div class="mut" id="dst" style="margin-top:12px"></div>
+        <div id="nxt" class="nxt hide"><div><span class="mut">Próxima parada</span><br><b id="nxtName"></b> <span class="mut" id="nxtDist"></span></div><button class="btn ghost" id="btnNext">Avançar parada</button></div>
+        <div class="err" id="dErr"></div>
+        <p class="mut">Mantenha esta tela aberta durante o percurso e permita o acesso à localização.</p>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="gpsWarn" class="block hide"><div class="card">
+  <b style="font-size:18px">📍 GPS sem sinal</b>
+  <p>Ligue a localização do aparelho, vá para um local aberto e mantenha esta tela aberta. Os passageiros só veem o ônibus enquanto o GPS estiver enviando a posição.</p>
+  <button class="btn red" id="btnEnd">Finalizar percurso</button>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbxwKWy1hRg9YFkq-BYW63BeN5mEEA_5dd4UikAZbbApuzrE1hqmRcj_9FH6ZDs7baUJLw/exec';
+const STALE = 30000, POLL = 8000, SEND = 6000;
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+if (API_URL.startsWith('COLE')) $('cfg').classList.remove('hide');
+
+const get = async a => (await fetch(API_URL + '?action=' + a)).json();
+const post = async o => (await fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(o)})).json();
+
+/* ---------- mapa e passageiro ---------- */
+const map = L.map('map').setView([-3.7319, -38.5267], 12); // Fortaleza, CE
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© OpenStreetMap'}).addTo(map);
+let routes = [], buses = [], offset = 0, fitted = false, focus = null;
+const stopsBy = {}; let lines = [];
+function drawStops() {
+  lines.forEach(l => map.removeLayer(l)); lines = [];
+  routes.forEach(r => {
+    const s = stopsBy[String(r.id)] || []; if (!s.length) return;
+    lines.push(L.polyline(s.map(p => [p.lat, p.lng]), {color:r.cor, weight:4, opacity:.6}).addTo(map));
+    s.forEach((p, i) => lines.push(L.circleMarker([p.lat, p.lng], {radius:7, color:r.cor, weight:3, fillColor:'#fff', fillOpacity:1}).bindTooltip(esc((i + 1) + '. ' + p.nome)).addTo(map)));
+  });
+  if (!fitted && lines.length) { map.fitBounds(L.featureGroup(lines).getBounds().pad(.15)); fitted = true; }
+}
+function nextTxt(r, b) {
+  const s = stopsBy[String(r.id)];
+  if (!s || !s.length || b.proxima === '' || b.proxima == null) return '';
+  const p = s[Number(b.proxima)];
+  return '<br>Próxima parada: <b>' + esc(p ? p.nome : '—') + '</b>';
+}
+const markers = {};
+
+function state(b) {
+  if (!b) return ['Fora de operação', 'off'];
+  const ativo = b.ativo === true || b.ativo === 'TRUE';
+  if (!ativo) return ['Fora de operação', 'off'];
+  return (Date.now() + offset - Number(b.ts)) < STALE ? ['Em operação', 'ok'] : ['Sem sinal', 'warn'];
+}
+function render() {
+  $('list').innerHTML = routes.map(r => {
+    const b = buses.find(x => String(x.rota) === String(r.id)), [st, cl] = state(b);
+    const ago = b && st !== 'Fora de operação' ? Math.max(0, Math.round((Date.now() + offset - Number(b.ts)) / 1000)) : null;
+    return '<div class="rt" data-id="' + esc(r.id) + '"><div class="top"><span class="dot" style="background:' + esc(r.cor) + '"></span>' + esc(r.id) + ' · ' + esc(r.nome) + '<span class="pill ' + cl + '">' + st + '</span></div>' +
+      '<div class="mut" style="margin-top:6px">' + (ago != null ? 'Motorista: ' + esc(b.motorista) + nextTxt(r, b) + '<br>Atualizado há ' + ago + ' s · ' + Math.round(Number(b.vel || 0) * 3.6) + ' km/h' : 'Aguardando um motorista iniciar o percurso') + '</div></div>';
+  }).join('');
+  $('stA').textContent = buses.filter(b => state(b)[0] === 'Em operação').length; $('stR').textContent = routes.length;
+  const seen = new Set();
+  buses.forEach(b => {
+    const [st] = state(b), id = String(b.rota), r = routes.find(x => String(x.id) === id);
+    if (st === 'Fora de operação' || !r) return;
+    seen.add(id);
+    const ll = [Number(b.lat), Number(b.lng)];
+    if (!markers[id]) markers[id] = L.marker(ll, {icon:L.divIcon({className:'', html:'<div class="pin" style="background:' + esc(r.cor) + '">' + esc(r.id) + '</div>', iconSize:[30,30], iconAnchor:[15,15]})}).addTo(map);
+    else markers[id].setLatLng(ll);
+    markers[id].setOpacity(st === 'Sem sinal' ? .5 : 1);
+  });
+  Object.keys(markers).forEach(id => { if (!seen.has(id)) { map.removeLayer(markers[id]); delete markers[id]; } });
+  if (!fitted && seen.size) { map.fitBounds(L.latLngBounds([...seen].map(id => markers[id].getLatLng())).pad(.4), {maxZoom:16}); fitted = true; }
+}
+$('list').addEventListener('click', e => { const c = e.target.closest('.rt'); if (c && markers[c.dataset.id]) map.setView(markers[c.dataset.id].getLatLng(), 16); });
+
+async function poll() {
+  if (API_URL.startsWith('COLE') || document.hidden) return;
+  try { const d = await get('buses'); buses = d.buses; offset = d.now - Date.now(); render(); } catch (e) {}
+}
+async function init() {
+  if (API_URL.startsWith('COLE')) return;
+  try {
+    routes = (await get('routes')).routes;
+    try {
+      (await get('stops')).stops.forEach(p => (stopsBy[String(p.rota)] = stopsBy[String(p.rota)] || []).push({nome:p.nome, lat:Number(p.lat), lng:Number(p.lng), ordem:Number(p.ordem)}));
+      Object.values(stopsBy).forEach(a => a.sort((x, y) => x.ordem - y.ordem));
+      drawStops();
+    } catch (e) {}
+    $('rsel').innerHTML = routes.map(r => '<option value="' + esc(r.id) + '">' + esc(r.id + ' · ' + r.nome) + '</option>').join('');
+    $('drv').innerHTML = (await get('drivers')).drivers.map(n => '<option>' + esc(n) + '</option>').join('');
+  } catch (e) { $('cfg').textContent = 'Não consegui acessar a planilha. Confira a URL e se a implantação está como “Qualquer pessoa”.'; $('cfg').classList.remove('hide'); }
+  (async function loop() { await poll(); setTimeout(loop, POLL + Math.random() * 3000); })();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+  setInterval(render, 1000);
+}
+
+/* ---------- motorista ---------- */
+let sess = null, run = null;
+try { sess = JSON.parse(localStorage.getItem('bl_sess')); } catch (e) {}
+function ui() {
+  $('login').classList.toggle('hide', !!sess); $('panel').classList.toggle('hide', !sess);
+  if (sess) $('hello').textContent = 'Olá, ' + sess.nome;
+  $('btnGo').textContent = run ? 'Finalizar percurso' : 'Iniciar percurso';
+  $('btnGo').classList.toggle('red', !!run); $('rsel').disabled = !!run;
+  $('nxt').classList.toggle('hide', !run || !(stopsBy[run.rota] || []).length);
+  if (run) nextUI(run);
+  $('dst').textContent = run ? 'Transmitindo a posição da rota ' + run.rota + '…' : '';
+}
+$('btnIn').onclick = async () => {
+  $('lErr').textContent = '';
+  try {
+    const r = await post({action:'login', nome:$('drv').value, pin:$('pin').value.trim()});
+    if (r.error) { $('lErr').textContent = 'Motorista ou PIN incorreto.'; return; }
+    sess = r; localStorage.setItem('bl_sess', JSON.stringify(r)); $('pin').value = ''; ui();
+  } catch (e) { $('lErr').textContent = 'Sem conexão com a planilha.'; }
+};
+async function stop(msg) {
+  if (!run) return; const cur = run; run = null; gpsWarn(false);
+  navigator.geolocation.clearWatch(cur.watch); clearInterval(cur.timer);
+  try { cur.wake && cur.wake.release(); } catch (e) {}
+  try { await post({action:'stop', token:sess.token, rota:cur.rota}); } catch (e) {}
+  $('dErr').textContent = msg || ''; ui(); poll();
+}
+$('btnOut').onclick = async () => { await stop(); sess = null; localStorage.removeItem('bl_sess'); ui(); };
+$('btnGo').onclick = async () => {
+  $('dErr').textContent = '';
+  if (run) return stop();
+  if (!navigator.geolocation) { $('dErr').textContent = 'Este aparelho não oferece GPS.'; return; }
+  $('btnGo').disabled = true; $('dst').textContent = 'Verificando o GPS…';
+  const fix = await new Promise(res => navigator.geolocation.getCurrentPosition(p => res({p}), e => res({e}), {enableHighAccuracy:true, timeout:15000, maximumAge:0}));
+  $('btnGo').disabled = false; $('dst').textContent = '';
+  if (fix.e) { $('dErr').textContent = gpsMsg(fix.e); return; }
+  const cur = run = {rota:$('rsel').value, last:{lat:fix.p.coords.latitude, lng:fix.p.coords.longitude, vel:fix.p.coords.speed}, busy:false, prox:0, fixAt:Date.now()};
+  cur.watch = navigator.geolocation.watchPosition(
+    p => { cur.last = {lat:p.coords.latitude, lng:p.coords.longitude, vel:p.coords.speed}; cur.fixAt = Date.now(); gpsWarn(false); autoAdvance(cur); if (!cur.sent) send(cur); },
+    e => { if (e.code === 1) stop(gpsMsg(e)); else gpsWarn(true); },
+    {enableHighAccuracy:true, maximumAge:2000});
+  cur.timer = setInterval(() => { if (Date.now() - cur.fixAt > 15000) gpsWarn(true); send(cur); }, SEND);
+  try { cur.wake = await navigator.wakeLock.request('screen'); } catch (e) {}
+  ui();
+};
+function gpsMsg(e) {
+  return e.code === 1 ? 'Permissão de localização negada. Libere a localização para este site nas configurações do navegador.'
+    : e.code === 2 ? 'GPS desligado ou sem sinal. Ligue a localização do aparelho e tente de novo.'
+    : 'Não consegui obter sua posição. Vá para um local aberto, confirme que o GPS está ligado e tente de novo.';
+}
+function gpsWarn(on) { $('gpsWarn').classList.toggle('hide', !on); }
+$('btnEnd').onclick = () => stop();
+document.addEventListener('visibilitychange', async () => {
+  if (!document.hidden && run) { try { run.wake = await navigator.wakeLock.request('screen'); } catch (e) {} }
+});
+try { navigator.permissions.query({name:'geolocation'}).then(s => { s.onchange = () => { if (s.state === 'denied' && run) stop('A permissão de localização foi retirada.'); }; }); } catch (e) {}
+function dist(la1, ln1, la2, ln2) {
+  const R = 6371000, t = Math.PI / 180, a = Math.sin((la2 - la1) * t / 2) ** 2 + Math.cos(la1 * t) * Math.cos(la2 * t) * Math.sin((ln2 - ln1) * t / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+function nextUI(cur) {
+  const s = stopsBy[cur.rota] || []; if (!s.length) return;
+  const p = s[cur.prox];
+  $('nxtName').textContent = (cur.prox + 1) + '. ' + p.nome;
+  $('nxtDist').textContent = cur.last ? '· a ' + Math.round(dist(cur.last.lat, cur.last.lng, p.lat, p.lng)) + ' m' : '';
+}
+function advance(cur) { const s = stopsBy[cur.rota] || []; if (!s.length) return; cur.prox = (cur.prox + 1) % s.length; nextUI(cur); }
+function autoAdvance(cur) {
+  const s = stopsBy[cur.rota] || []; if (!s.length || !cur.last) return;
+  const p = s[cur.prox];
+  if (dist(cur.last.lat, cur.last.lng, p.lat, p.lng) < 40) advance(cur); else nextUI(cur);
+}
+$('btnNext').onclick = () => { if (run) { advance(run); send(run); } };
+async function send(cur) {
+  if (run !== cur || !cur.last || cur.busy || Date.now() - cur.fixAt > 15000) return;
+  cur.busy = true; cur.sent = true;
+  try {
+    const r = await post({action:'pos', token:sess.token, rota:cur.rota, lat:cur.last.lat, lng:cur.last.lng, vel:cur.last.vel || 0, prox:cur.prox});
+    if (r.error === 'rota_ocupada') stop('Esta rota já está em operação com outro motorista.');
+    else if (r.error) { sess = null; localStorage.removeItem('bl_sess'); stop('Sessão expirada. Entre novamente.'); }
+    else $('dErr').textContent = '';
+  } catch (e) { $('dErr').textContent = 'Falha ao enviar a posição; tentando de novo.'; }
+  cur.busy = false;
+}
+
+/* ---------- abas ---------- */
+function tab(p) { $('vP').classList.toggle('hide', !p); $('vD').classList.toggle('hide', p); $('tP').classList.toggle('on', p); $('tD').classList.toggle('on', !p); if (p) setTimeout(() => map.invalidateSize(), 50); }
+$('tP').onclick = () => tab(true); $('tD').onclick = () => tab(false);
+ui(); init();
+</script>
+</body>
+</html>
