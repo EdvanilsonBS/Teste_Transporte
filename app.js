@@ -4,16 +4,26 @@ const SB_KEY = 'sb_publishable_UjZa7ykJtFkpmXsyirHrgw_pHlNVszx'; // chave públi
 const DEMO = !SB_URL;
 
 // --- Passageiro
-const POLL = 30000; // de quanto em quanto tempo o passageiro atualiza o mapa (ms)
+const POLL = 10000; // de quanto em quanto tempo o passageiro atualiza o mapa (ms)
 const STALE = 60000; // sem sinal do ônibus por mais que isso => "Sem sinal" (ms)
 const LIM_CHEGANDO = 150; // metros: abaixo disso aparece "Chegando"
 const LIM_PERTO = 1000; // metros: abaixo disso aparece "Perto" (acima: "Longe")
 
-// --- Mapa de fundo. Para trocar de provedor (se um dia o atual cair ou bloquear), mude só estas duas linhas.
-// Endereço pedido pela política do OpenStreetMap: https://tile.openstreetmap.org/{z}/{x}/{y}.png (sem {s}).
-// Exemplo CARTO escuro: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' (e acrescente subdomains: 'abcd' em L.tileLayer)
-const MAPA_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-const MAPA_CREDITO = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'; // o crédito precisa ficar visível
+// --- Estilos de mapa: o passageiro escolhe no botão de camadas (canto superior direito do mapa) e o site lembra a escolha.
+// Todos gratuitos e sem chave. Para tirar um estilo, apague a linha dele. 'escuro: true' escurece os tiles com um filtro (veja .tiles-escuros no style.css).
+// MAPA_PADRAO é o estilo de quem ainda não escolheu; no aparelho em tema escuro, quem não escolheu vê o 'Escuro'.
+const ESRI = 'Tiles © <a href="https://www.esri.com">Esri</a>';
+const OSM = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+const MAPAS = [
+  { id: 'ruas', nome: 'Ruas (OpenStreetMap)', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', credito: OSM, nativo: 19 },
+  { id: 'ruas2', nome: 'Ruas (Esri)', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', credito: ESRI, nativo: 19 },
+  { id: 'claro', nome: 'Claro e simples', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', credito: ESRI, nativo: 16 },
+  { id: 'escuro', nome: 'Escuro', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', credito: OSM, nativo: 19, escuro: true },
+  { id: 'satelite', nome: 'Satélite', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', credito: ESRI, nativo: 19 },
+];
+const MAPA_PADRAO = 'ruas';
+
+const ANIM_ONIBUS = 8000; // ms: o pin do ônibus desliza até a nova posição neste tempo (0 = pula direto)
 
 // --- Paradas novas aparecem para quem já está com o site aberto (sem recarregar a página)
 const ATUALIZAR_PARADAS = 5 * 60000; // de quanto em quanto tempo o site relê rotas e paradas (ms)
@@ -181,10 +191,108 @@ async function poll() {
 
 /* ---------- mapa e lista de rotas ---------- */
 const map = L.map('map').setView([-3.7319, -38.5267], 12);
-L.tileLayer(MAPA_URL, {
-  maxZoom: 19,
-  attribution: MAPA_CREDITO,
-}).addTo(map);
+const base = {}; // nome do estilo -> camada
+let mapaSalvo = null;
+try { mapaSalvo = localStorage.getItem('mapaEstilo'); } catch (e) {}
+MAPAS.forEach(m => {
+  base[m.nome] = L.tileLayer(m.url, { maxZoom: 19, maxNativeZoom: m.nativo, attribution: m.credito, className: m.escuro ? 'tiles-escuros' : '' });
+  base[m.nome]._id = m.id;
+});
+const querEscuro = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+const idInicial = MAPAS.some(m => m.id === mapaSalvo) ? mapaSalvo : querEscuro && MAPAS.some(m => m.id === 'escuro') ? 'escuro' : MAPA_PADRAO;
+const mInicial = MAPAS.find(m => m.id === idInicial) || MAPAS[0];
+base[mInicial.nome].addTo(map);
+L.control.layers(base, null, { position: 'topright', collapsed: true }).addTo(map);
+map.on('baselayerchange', e => {
+  try { localStorage.setItem('mapaEstilo', e.layer._id); } catch (err) {}
+});
+/* Ao abrir, se o aparelho já deu permissão de localização, o mapa vai até o passageiro (só se ele estiver perto do evento) */
+let jaLocalizou = false,
+  locAuto = false;
+function autoLocalizar() {
+  if (jaLocalizou || !navigator.geolocation || !navigator.permissions) return;
+  jaLocalizou = true;
+  navigator.permissions
+    .query({ name: 'geolocation' })
+    .then(p => {
+      if (p.state === 'granted') {
+        locAuto = true;
+        map.locate({ enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+      } else aviso('Toque em ⌖ para ver onde você está.');
+    })
+    .catch(() => {});
+}
+
+/* Botões do mapa: recentralizar na rota e "onde estou" */
+let eu = null; // marcador da posição do passageiro
+function aviso(txt) {
+  let t = document.getElementById('mapToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'mapToast';
+    t.className = 'map-toast';
+    map.getContainer().appendChild(t);
+  }
+  t.textContent = txt;
+  t.hidden = false;
+  clearTimeout(aviso.t);
+  aviso.t = setTimeout(() => (t.hidden = true), 5000);
+}
+const Botoes = L.Control.extend({
+  options: { position: 'topleft' },
+  onAdd() {
+    const box = L.DomUtil.create('div', 'leaflet-bar map-btns');
+    const mk1 = (html, title, fn) => {
+      const a = L.DomUtil.create('a', '', box);
+      a.href = '#';
+      a.setAttribute('role', 'button');
+      a.title = title;
+      a.setAttribute('aria-label', title);
+      a.innerHTML = html;
+      L.DomEvent.on(a, 'click', e => {
+        L.DomEvent.preventDefault(e);
+        fn();
+      });
+    };
+    mk1('<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>', 'Mostrar a rota inteira', () => focusRoute());
+    mk1('<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>', 'Onde estou', () => {
+      if (!navigator.geolocation) return aviso('Este aparelho não oferece localização.');
+      aviso('Procurando você…');
+      map.locate({ enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+    });
+    L.DomEvent.disableClickPropagation(box);
+    return box;
+  },
+});
+map.addControl(new Botoes());
+map.on('locationfound', e => {
+  if (eu) map.removeLayer(eu);
+  eu = L.layerGroup([
+    L.circle(e.latlng, { radius: e.accuracy, color: '#2563eb', weight: 1, fillOpacity: 0.12, interactive: false }),
+    L.circleMarker(e.latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1, interactive: false }),
+  ]).addTo(map);
+  const longeDoEvento = locAuto && dist(e.latlng.lat, e.latlng.lng, -3.7319, -38.5267) > 30000; // 30 km
+  locAuto = false;
+  if (!longeDoEvento) map.flyTo(e.latlng, Math.max(map.getZoom(), 16), { duration: 0.8 });
+  $('mapToast') && ($('mapToast').hidden = true);
+});
+map.on('locationerror', () => aviso('Não consegui pegar sua localização. Libere a localização para este site no navegador.'));
+/* O pin do ônibus desliza até a nova posição em vez de pular */
+function deslizar(m, ll) {
+  const to = L.latLng(ll[0], ll[1]);
+  if (m._to && m._to.equals(to)) return; // render roda a cada 1 s: só anima quando a posição mudou
+  m._to = to;
+  if (!ANIM_ONIBUS || !m._map) return m.setLatLng(to);
+  const from = m.getLatLng(),
+    t0 = performance.now();
+  if (from.distanceTo(to) > 3000) return m.setLatLng(to); // salto grande (ex.: mudou de rota): vai direto
+  cancelAnimationFrame(m._raf);
+  (function frame(now) {
+    const k = Math.min(1, (now - t0) / ANIM_ONIBUS);
+    m.setLatLng([from.lat + (to.lat - from.lat) * k, from.lng + (to.lng - from.lng) * k]);
+    if (k < 1) m._raf = requestAnimationFrame(frame);
+  })(t0);
+}
 const R = {},
   mk = {};
 let selRoute = '1',
@@ -205,81 +313,15 @@ const stopIcon = (r, i, st, mini) =>
     html: mini
       ? '<div class="sp mini" style="--c:' + esc(r.cor) + '"></div>'
       : '<div class="sp' +
-        (st === 'passou' ? ' done' : st === 'chegando' || st === 'local' ? ' on' : '') +
+        (st === 'chegando' || st === 'local' ? ' on' : '') +
         '" style="--c:' +
         esc(r.cor) +
         '">' +
-        (st === 'passou' ? '✓' : BUS_SVG) + // placa de ponto de ônibus (sem número; a ordem das paradas está na lista ao lado)
+        BUS_SVG + // placa de ponto de ônibus (sem número; a ordem das paradas está na lista ao lado)
         '</div>',
     iconSize: mini ? [14, 14] : [36, 50],
     iconAnchor: mini ? [7, 7] : [18, 49], // o pé da placa fica exatamente sobre a parada
   });
-
-/* ===== PARADA: modal com os motoristas que ainda vão passar (quem já passou não aparece) ===== */
-const MODAL_ST = { local: 'No local', chegando: 'Chegando', perto: 'Perto', longe: '' };
-let modalStop = null;
-const modalEl = document.createElement('div');
-modalEl.className = 'modal';
-modalEl.hidden = true;
-modalEl.setAttribute('role', 'dialog');
-modalEl.setAttribute('aria-modal', 'true');
-document.body.appendChild(modalEl);
-function fecharParada() {
-  modalStop = null;
-  modalEl.hidden = true;
-}
-function abrirParada(rid, i) {
-  modalStop = { rid: String(rid), i };
-  modalEl.hidden = false;
-  desenhaModal();
-}
-function desenhaModal() {
-  if (!modalStop) return;
-  const { rid, i } = modalStop,
-    r = routes.find(x => x.id === rid),
-    s = stopsBy[rid] || [],
-    p = s[i];
-  if (!r || !p) return fecharParada();
-  const vindo = buses
-    .filter(b => String(b.rota) === rid && state(b) !== 'off')
-    .map(b => ({ b, x: info(b, s, i) }))
-    .filter(o => o.x.st !== 'passou') // já passou por esta parada: não mostra
-    .sort((a, c) => a.x.m - c.x.m);
-  const html =
-    '<div class="modal-box" style="--c:' + esc(r.cor) + '">' +
-    '<div class="row"><div><b class="titulo">' + esc(p.nome) + '</b><div class="mut">Rota ' + esc(r.id) + ' · ' + esc(r.nome) + '</div></div>' +
-    '<button class="btn ghost" data-fechar="1" aria-label="Fechar">✕</button></div>' +
-    '<div class="mt"><b>Motoristas que ainda vão passar por aqui</b></div>' +
-    (vindo.length
-      ? vindo
-          .map(
-            o =>
-              '<div class="bus" role="button" tabindex="0" data-mot="' + esc(o.b.motorista) + '" style="--c:' + esc(r.cor) + '">' +
-              '<div class="top peq"><span class="bico">' + BUS_SVG + '</span><b>' + esc(o.b.motorista) + '</b>' +
-              (MODAL_ST[o.x.st] ? '<span class="pill s-' + o.x.st + '">' + MODAL_ST[o.x.st] + '</span>' : '') +
-              '<span class="ver">Ver no mapa</span></div></div>',
-          )
-          .join('')
-      : '<div class="mut mt6">Nenhum ônibus vai passar por esta parada agora.</div>') +
-    '<p class="mut mt">A linha colorida no mapa mostra por onde cada ônibus já andou desde que você abriu o site.</p>' +
-    '</div>';
-  if (modalEl._h !== html) {
-    modalEl.innerHTML = html;
-    modalEl._h = html;
-  }
-}
-modalEl.addEventListener('click', e => {
-  if (e.target === modalEl || e.target.closest('[data-fechar]')) return fecharParada();
-  const el = e.target.closest('[data-mot]');
-  if (el) {
-    const nome = el.dataset.mot;
-    fecharParada();
-    irParaMotorista(nome);
-  }
-});
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && modalStop) fecharParada();
-});
 
 /* ===== TRILHA: por onde cada ônibus já andou (guardada neste navegador, enquanto o site estiver aberto) ===== */
 const TRILHA_MIN = 15; // metros: só guarda o ponto se o ônibus andou pelo menos isso
@@ -325,17 +367,16 @@ function build(refit = true) {
     const dots = s.map((p, i) => {
       const m = L.marker([p.lat, p.lng], { icon: stopIcon(r, i, 'sem', false), zIndexOffset: 200 });
       m._k = 'sem';
-      m.on('click', () => {
-        m.closeTooltip();
-        abrirParada(r.id, i);
-      });
       return m;
     });
     R[r.id] = { dots, r };
   });
   paint();
   stopLabels();
-  if (refit) focusRoute();
+  if (refit) {
+    focusRoute();
+    autoLocalizar();
+  }
 }
 function paint() {
   Object.entries(R).forEach(([id, o]) => {
@@ -395,7 +436,7 @@ function stopStates(r, bs) {
 }
 // Texto que aparece à direita de cada parada para o passageiro (sem distância e sem tempo).
 // Para voltar a mostrar km e minutos, use x.m (metros) e x.min (minutos) aqui.
-const TXT = {passou: 'Já passou', local: 'No local', chegando: 'Chegando', perto: 'Perto'};
+const TXT = {passou: '', local: '', chegando: '', perto: ''};
 const tx = x => TXT[x.st] || '';
 function proximaParada(r, b) { // a próxima parada que o motorista vai fazer (ou onde ele está parado)
   if (b.proxima == null || b.proxima === '') return null;
@@ -453,18 +494,16 @@ function render() {
                 const x = SS[r.id][i];
                 return (
                   '<div class="st' +
-                  (x.st === 'passou' ? ' done' : '') +
+                  ''  +
                   '" role="button" tabindex="0" title="Ver no mapa" data-r="' +
                   esc(r.id) +
                   '" data-i="' +
                   i +
                   '"><b>' +
                   esc(p.nome) +
-                  '</b><span class="tx s-' +
-                  x.st +
-                  '">' +
-                  tx(x) +
-                  '</span></div>'
+                  '</b>' +
+                  (tx(x) ? '<span class="tx s-' + x.st + '">' + tx(x) + '</span>' : '') + // sem texto, sem bolinha
+                  '</div>'
                 );
               })
               .join('') +
@@ -529,12 +568,13 @@ function render() {
         .bindTooltip(esc(b.motorista) + ' · rota ' + esc(r.id), { direction: 'top', offset: [0, -26] })
         .addTo(map);
       mk[id]._r = r.id;
+      mk[id]._to = L.latLng(ll[0], ll[1]);
       mk[id]._w = warn;
       mk[id].on('click', () => {
         if (selRoute !== r.id) pick(r.id);
       });
     } else {
-      mk[id].setLatLng(ll);
+      deslizar(mk[id], ll);
       if (mk[id]._w !== warn) {
         mk[id].setIcon(pinIcon(r, b, warn));
         mk[id]._w = warn;
@@ -548,7 +588,6 @@ function render() {
       trails[k] = null;
     }
   });
-  desenhaModal();
   Object.keys(mk).forEach(k => {
     if (!seen.has(k)) {
       map.removeLayer(mk[k]);
