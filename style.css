@@ -354,13 +354,15 @@ svg.leaflet-image-layer.leaflet-interactive path {
 	border-radius: 5px;
 	}
 .leaflet-control-layers-toggle {
-	background-image: url(images/layers.png);
+	background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23334155' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3 3 8l9 5 9-5-9-5z'/><path d='m3 13 9 5 9-5'/></svg>");
+	background-repeat: no-repeat;
+	background-position: center;
+	background-size: 22px 22px;
 	width: 36px;
 	height: 36px;
 	}
 .leaflet-retina .leaflet-control-layers-toggle {
-	background-image: url(images/layers-2x.png);
-	background-size: 26px 26px;
+	background-size: 22px 22px;
 	}
 .leaflet-touch .leaflet-control-layers-toggle {
 	width: 44px;
@@ -783,6 +785,12 @@ h1 {
 .stats span {
   font-size: 12px;
   color: #cbd8f5;
+}
+/* Celular: título, texto e contadores centralizados (no computador continua alinhado à esquerda) */
+@media (max-width: 719px) {
+  .hero { text-align: center; }
+  .hero h1, .hero p { margin-left: auto; margin-right: auto; }
+  .stats { justify-content: center; }
 }
 /* ===== 5. ÁREA PRINCIPAL, CARTÕES E MAPA ===== */
 .wrap {
@@ -1333,3 +1341,22 @@ input[type='color'] { height: 48px; padding: 4px; cursor: pointer; }
   border: 1px solid var(--bd); border-radius: 18px 18px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.35); }
 .modal-box .bus { margin-top: 10px; }
 @media (min-width: 720px) { .modal { align-items: center; padding: 20px; } .modal-box { border-radius: 18px; } }
+
+/* ===== 18. MAPA: botões, aviso e tema escuro ===== */
+.map-btns a { display: grid; place-items: center; cursor: pointer; }
+.map-toast { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 1200; max-width: 90%;
+  background: #0b1b3a; color: #fff; font: 600 13px/1.3 system-ui; padding: 8px 14px; border-radius: 99px; box-shadow: 0 2px 10px #0006; text-align: center; }
+@media (prefers-color-scheme: dark) {
+  .leaflet-container { background: #0f1626; }
+  .leaflet-bar a { background-color: #121a2d; color: #eaf0fb; border-bottom-color: #223049; }
+  .leaflet-bar a:hover { background-color: #1a2540; }
+  .leaflet-container .leaflet-control-attribution { background: rgba(18, 26, 45, 0.8); color: #9aa8c0; }
+  .leaflet-control-attribution a { color: #9aa8c0; }
+}
+.leaflet-control-layers {
+  display: none;
+}
+/* Estilo de mapa "Escuro": inverte só os tiles (pins e botões não mudam) */
+.tiles-escuros { filter: invert(1) hue-rotate(180deg) brightness(0.95) contrast(0.9); }
+.leaflet-control-layers-list { font-size: 14px; color: #0f172a; }
+.leaflet-control-layers label { padding: 3px 0; }
